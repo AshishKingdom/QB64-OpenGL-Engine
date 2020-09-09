@@ -18,6 +18,8 @@ SUB _GL ()
     if engine_enable_drawing = 0 then exit sub
     
     _glViewPort 0, 0, _width, _height
+    _glClearColor engine_clear_color.x, engine_clear_color.y, engine_clear_color.z, 1
+    _glClear _GL_COLOR_BUFFER_BIT OR _GL_DEPTH_BUFFER_BIT
     
     _glMatrixMode _GL_MODELVIEW
     _glLoadIdentity
@@ -47,11 +49,82 @@ SUB engine.draw (m_ref as _unsigned long)
         engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
         exit sub
     end if
+    if engine_enable_border = 0 and engine_enable_fill = 0 then exit sub
+    
     '@debug-part:end
     _glEnableClientState _GL_VERTEX_ARRAY
     _glVertexPointer 3, _GL_FLOAT, 13, _offset(engine_internal_vertex_list())+13*(engine_internal_mesh_list(m_ref).mesh_v_index)
-    _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+    if engine_enable_fill = 1 then
+        _glColor3ub 255,255,255
+        _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+    end if
+    if engine_enable_border = 1 then
+        _glColor3ub 0,0,0
+        _glLineWidth engine_border_thickness
+        _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+    end if
     _glDisableClientState _GL_VERTEX_ARRAY
+end sub
+
+sub engine.set_background(c as _unsigned long)
+    dim r as single, g as single, b as single
+    r = _red32(c) : g = _green32(c) : b = _blue32(c)
+    engine_clear_color.x = r/255
+    engine_clear_color.y = g/255
+    engine_clear_color.z = b/255
+    '@debug-part:start
+    engine_internal_debug_log "engine.set_background() : background clearning color changed to ("+str$(r)+","+str$(g)+","+str$(b)+")",1
+    '@debug-part:end
+end sub
+
+sub engine.enable_drawing ()
+    engine_enable_drawing = 1
+    '@debug-part:start
+    engine_internal_debug_log "engine.enable_drawing() : drawing enabled", 1
+    '@debug-part:end
+end sub
+
+sub engine.disable_drawing ()
+    engine_enable_drawing = 0
+    '@debug-part:start
+    engine_internal_debug_log "engine.disable_drawing() : drawing disabled", 1
+    '@debug-part:end
+end sub
+
+sub engine.enable_border ()
+    engine_enable_border = 1
+    '@debug-part:start
+    engine_internal_debug_log "engine.enable_border() : border enabled", 1
+    '@debug-part:end
+end sub
+
+sub engine.disable_border ()
+    engine_enable_border = 0
+    '@debug-part:start
+    engine_internal_debug_log "engine.disable_border() : border disabled", 1
+    '@debug-part:end
+end sub
+
+sub engine.enable_fill()
+    engine_enable_fill = 1
+    '@debug-part:start
+    engine_internal_debug_log "engine.enable_fill() : fill enabled", 1
+    '@debug-part:end
+end sub
+
+sub engine.disable_fill ()
+    engine_enable_fill = 0
+    '@debug-part:start
+    engine_internal_debug_log "engine.disable_drawing() : fill disabled", 1
+    '@debug-part:end
+end sub
+
+sub engine.set_border (w as _unsigned integer)
+    engine_enable_border = 1
+    engine_border_thickness = w
+    '@debug-part:start
+    engine_internal_debug_log "engine.set_border() : border thickness set to "+str$(w), 1
+    '@debug-part:end
 end sub
 
 '#################################################################

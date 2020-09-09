@@ -56,11 +56,24 @@ redim shared engine_internal_vertex_list(3) as engine_internal_type_vertex
 redim shared engine_internal_mesh_list(0) as engine_internal_type_mesh
 
 dim shared engine_enable_drawing as _byte, engine_coord_system as _byte, engine_texture as _byte
-dim shared engine_canvas as _unsigned long
+dim shared engine_enable_border as _byte, engine_enable_fill as _byte, engine_border_thickness as _byte
+dim shared engine_canvas as _unsigned long, engine_clear_color as engine_internal_type_vec3
 
+'#################################################################
+'---------------------- CONFIGURATIONS ---------------------------
+'#################################################################
 engine_enable_drawing = 0
 engine_coord_system = ENGINE_COORD_DEFAULT
 engine_texture = 0
+engine_enable_fill = 1
+engine_enable_border = 1
+engine_border_thickness = 2
 engine_canvas = _newimage(640, 480, 32)
+
+engine_clear_color.x = 0.4
+engine_clear_color.y = 0.4
+engine_clear_color.z = 0.4
+
 _GLRENDER _ONLY
+
 screen engine_canvas
