@@ -49,18 +49,19 @@ SUB engine.draw (m_ref as _unsigned long)
         engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
         exit sub
     end if
-    if engine_enable_border = 0 and engine_enable_fill = 0 then exit sub
-    
+    if engine_internal_mesh_list(m_ref).hidden = 1 then exit sub 'object is set to hidden. no need to render
+    if engine_internal_mesh_list(m_ref).border = 0 and engine_internal_mesh_list(m_ref).fill = 0 then exit sub 'neither fill nor border enable. So, user forgot about hidden property?
     '@debug-part:end
+    
     _glEnableClientState _GL_VERTEX_ARRAY
     _glVertexPointer 3, _GL_FLOAT, 13, _offset(engine_internal_vertex_list())+13*(engine_internal_mesh_list(m_ref).mesh_v_index)
-    if engine_enable_fill = 1 then
+    if engine_internal_mesh_list(m_ref).fill = 1 then
         _glColor3ub 255,255,255
         _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
     end if
-    if engine_enable_border = 1 then
+    if engine_internal_mesh_list(m_ref).border = 1 then
         _glColor3ub 0,0,0
-        _glLineWidth engine_border_thickness
+        _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
         _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
     end if
     _glDisableClientState _GL_VERTEX_ARRAY
@@ -91,39 +92,89 @@ sub engine.disable_drawing ()
     '@debug-part:end
 end sub
 
-sub engine.enable_border ()
-    engine_enable_border = 1
+sub engine.enable_border (m_ref as _unsigned long)
     '@debug-part:start
-    engine_internal_debug_log "engine.enable_border() : border enabled", 1
+    if m_ref>ubound(engine_internal_mesh_list) then
+        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        exit sub
+    end if
+    if engine_internal_mesh_list(m_ref).used = 0 then
+        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        exit sub
+    end if
+    '@debug-part:end
+    engine_internal_mesh_list(m_ref).border = 1
+    '@debug-part:start
+    engine_internal_debug_log "engine.enable_border() : border enabled for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
     '@debug-part:end
 end sub
 
-sub engine.disable_border ()
-    engine_enable_border = 0
+sub engine.disable_border (m_ref as _unsigned long)
     '@debug-part:start
-    engine_internal_debug_log "engine.disable_border() : border disabled", 1
+    if m_ref>ubound(engine_internal_mesh_list) then
+        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        exit sub
+    end if
+    if engine_internal_mesh_list(m_ref).used = 0 then
+        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        exit sub
+    end if
+    '@debug-part:end
+    engine_internal_mesh_list(m_ref).border = 0
+    '@debug-part:start
+    engine_internal_debug_log "engine.disable_border() : border disabled for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
     '@debug-part:end
 end sub
 
-sub engine.enable_fill()
-    engine_enable_fill = 1
+sub engine.enable_fill(m_ref as _unsigned long)
     '@debug-part:start
-    engine_internal_debug_log "engine.enable_fill() : fill enabled", 1
+    if m_ref>ubound(engine_internal_mesh_list) then
+        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        exit sub
+    end if
+    if engine_internal_mesh_list(m_ref).used = 0 then
+        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        exit sub
+    end if
+    '@debug-part:end
+    engine_internal_mesh_list(m_ref).fill = 1
+    '@debug-part:start
+    engine_internal_debug_log "engine.enable_fill() : fill enabled for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
     '@debug-part:end
 end sub
 
-sub engine.disable_fill ()
-    engine_enable_fill = 0
+sub engine.disable_fill (m_ref as _unsigned long)
     '@debug-part:start
-    engine_internal_debug_log "engine.disable_drawing() : fill disabled", 1
+    if m_ref>ubound(engine_internal_mesh_list) then
+        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        exit sub
+    end if
+    if engine_internal_mesh_list(m_ref).used = 0 then
+        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        exit sub
+    end if
+    '@debug-part:end
+    engine_internal_mesh_list(m_ref).fill = 0
+    '@debug-part:start
+    engine_internal_debug_log "engine.disable_drawing() : fill disabled for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
     '@debug-part:end
 end sub
 
-sub engine.set_border (w as _unsigned integer)
-    engine_enable_border = 1
-    engine_border_thickness = w
+sub engine.set_border (m_ref as _unsigned long, w as _unsigned integer)
     '@debug-part:start
-    engine_internal_debug_log "engine.set_border() : border thickness set to "+str$(w), 1
+    if m_ref>ubound(engine_internal_mesh_list) then
+        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        exit sub
+    end if
+    if engine_internal_mesh_list(m_ref).used = 0 then
+        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        exit sub
+    end if
+    '@debug-part:end
+    engine_internal_mesh_list(m_ref).border = 1
+    engine_internal_mesh_list(m_ref).border_thickness = w
+    '@debug-part:start
+    engine_internal_debug_log "engine.set_border() : border thickness set to "+str$(w)+" for mesh for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
     '@debug-part:end
 end sub
 
@@ -158,8 +209,11 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
         end if
         
         engine_internal_mesh_list(m_ref).geometry_type = mesh_type
-        engine_internal_mesh_list(m_ref).used = -1
+        engine_internal_mesh_list(m_ref).used = 1
         engine_internal_mesh_list(m_ref).id = engine_internal_newID
+        engine_internal_mesh_list(m_ref).fill = 1
+        engine_internal_mesh_list(m_ref).border = 1
+        engine_internal_mesh_list(m_ref).border_thickness = 2
         
         n_vert = ubound(v) - lbound(v) + 1 
         'verifying the dimension type with the array v() passed
@@ -219,7 +273,7 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
         if found = 0 then
             'no free space found in the engine_internal_vertex_list() array where we can add vertices.
             'so, we'll create new space.
-            
+            engine_internal_debug_log "yo!",0
             i = ubound(engine_internal_vertex_list)
             
             redim _preserve engine_internal_vertex_list(i*2+mesh_type) as engine_internal_type_vertex
@@ -254,7 +308,7 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
         
         engine.create~& = m_ref
         '@debug-part:start
-        engine_internal_debug_log "engine.create() : new mesh created with ID - "+engine_internal_mesh_list(m_ref).ID, 1
+        engine_internal_debug_log "engine.create() : new mesh created with ID - <"+engine_internal_mesh_list(m_ref).ID+">", 1
         
     end if
     '@debug-part:end
@@ -323,7 +377,7 @@ sub engine.mesh.printinfo (m_ref as _unsigned long)
     engine_internal_debug_log ".used = "+str$(engine_internal_mesh_list(m_ref).used), 1
     engine_internal_debug_log ".mesh_v_index = "+str$(engine_internal_mesh_list(m_ref).mesh_v_index), 1
     engine_internal_debug_log ".mesh_total_v = "+str$(engine_internal_mesh_list(m_ref).mesh_total_v), 1
-    engine_internal_debug_log ".id = "+engine_internal_mesh_list(m_ref).id, 1
+    engine_internal_debug_log ".id = <"+engine_internal_mesh_list(m_ref).id+">", 1
     engine_internal_debug_log "vertex data for mesh -", 1
     dim i as _unsigned long
     for i = engine_internal_mesh_list(m_ref).mesh_v_index to engine_internal_mesh_list(m_ref).mesh_v_index + engine_internal_mesh_list(m_ref).mesh_total_v - 1
