@@ -36,7 +36,7 @@ END TYPE
 
 TYPE engine_internal_type_vertex 'vertex type which will be used rendering. (13 bytes)
     v as engine_internal_type_vec3 'position (12 bytes)
-    used as _byte 'if used its value is -1 else 0 (1 byte)
+    used as _unsigned _byte 'if used its value is -1 else 0 (1 byte)
 end type
 
 type engine_internal_type_mesh

@@ -55,15 +55,41 @@ SUB engine.draw (m_ref as _unsigned long)
     
     _glEnableClientState _GL_VERTEX_ARRAY
     _glVertexPointer 3, _GL_FLOAT, 13, _offset(engine_internal_vertex_list())+13*(engine_internal_mesh_list(m_ref).mesh_v_index)
-    if engine_internal_mesh_list(m_ref).fill = 1 then
-        _glColor3ub 255,255,255
-        _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
-    end if
-    if engine_internal_mesh_list(m_ref).border = 1 then
-        _glColor3ub 0,0,0
-        _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
-        _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
-    end if
+    select case engine_internal_mesh_list(m_ref).geometry_type
+        case ENGINE_GEOMETRY_POINT
+            if engine_internal_mesh_list(m_ref).border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
+            _glPointSize engine_internal_mesh_list(m_ref).border_thickness
+            _glColor3ub 0,0,0
+            _glDrawArrays _GL_POINTS, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+        case ENGINE_GEOMETRY_LINE
+            if engine_internal_mesh_list(m_ref).border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
+            _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
+            _glColor3ub 0,0,0
+            _glDrawArrays _GL_LINES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+        case ENGINE_GEOMETRY_TRIANGLE
+            if engine_internal_mesh_list(m_ref).fill = 1 then
+                _glColor3ub 255,255,255
+                _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+            end if
+            if engine_internal_mesh_list(m_ref).border = 1 then
+                _glColor3ub 0,0,0
+                _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
+                _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+            end if
+        case ENGINE_GEOMETRY_QUAD
+            if engine_internal_mesh_list(m_ref).fill = 1 then
+                _glColor3ub 255,255,255
+                _glDrawArrays _GL_QUADS, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+            end if
+            if engine_internal_mesh_list(m_ref).border = 1 then
+                _glColor3ub 0,0,0
+                _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
+                _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+            end if
+    end select
+    
+    engine_draw_skip_render:
+    
     _glDisableClientState _GL_VERTEX_ARRAY
 end sub
 
@@ -260,7 +286,7 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
                 if dimension = ENGINE_2D then tmp1 = 2 else tmp1 = 3 'storing number of elements per coordinate in tmp1
 
                 for i3 = 0 to ubound(v) step tmp1
-                    engine_internal_vertex_list(i).used = -1
+                    engine_internal_vertex_list(i).used = 1
                     engine_internal_vertex_list(i).v.x = v(i3)
                     engine_internal_vertex_list(i).v.y = v(i3+1)
                     if mesh_type = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
@@ -273,16 +299,14 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
         if found = 0 then
             'no free space found in the engine_internal_vertex_list() array where we can add vertices.
             'so, we'll create new space.
-            engine_internal_debug_log "yo!",0
             i = ubound(engine_internal_vertex_list)
-            
             redim _preserve engine_internal_vertex_list(i*2+mesh_type) as engine_internal_type_vertex
-            
+
             'last try for a free space near the array upper found.
             for i2 = i - mesh_type + 1 to i 'mesh_type is used also being used as no. of vertice in the geometry type
                 tmp1 = 0
                 for i3 = i2 to i2 + mesh_type - 1
-                    tmp1 = engine_internal_vertex_list(i3).used
+                    tmp1 = tmp1 + engine_internal_vertex_list(i3).used
                 next
                 if tmp1 = 0 then
                     found = 1
@@ -295,10 +319,10 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
             
             engine_internal_mesh_list(m_ref).mesh_v_index = i
             
-            if mesh_type = ENGINE_2D then tmp1 = 2 else tmp1 = 3 'storing number of elements per coordinate in tmp1
+            if dimension = ENGINE_2D then tmp1 = 2 else tmp1 = 3 'storing number of elements per coordinate in tmp1
             
             for i3 = 0 to ubound(v) step tmp1
-                engine_internal_vertex_list(i).used = -1
+                engine_internal_vertex_list(i).used = 1
                 engine_internal_vertex_list(i).v.x = v(i3)
                 engine_internal_vertex_list(i).v.y = v(i3+1)
                 if mesh_type = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
@@ -323,6 +347,37 @@ function engine.create.triangle~& (x1 as single, y1 as single, x2 as single, y2 
     engine_internal_debug_log "engine.create.triangle() --> engine.create()", 1
     '@debug-part:end
     engine.create.triangle~& = engine.create(ENGINE_GEOMETRY_TRIANGLE, ENGINE_2D, vert())
+end function
+
+function engine.create.point~& (x1 as single, y1 as single)
+    dim vert(1) as single
+    vert(0) = x1 : vert(1) = y1
+    '@debug-part:start
+    engine_internal_debug_log "engine.create.point() --> engine.create()", 1
+    '@debug-part:end
+    engine.create.point~& = engine.create(ENGINE_GEOMETRY_POINT, ENGINE_2D, vert())
+end function
+
+function engine.create.line~& (x1 as single, y1 as single, x2 as single, y2 as single)
+    dim vert(3) as single
+    vert(0) = x1 : vert(1) = y1
+    vert(2) = x2 : vert(3) = y2
+    '@debug-part:start
+    engine_internal_debug_log "engine.create.line() --> engine.create()", 1
+    '@debug-part:end
+    engine.create.line~& = engine.create(ENGINE_GEOMETRY_LINE, ENGINE_2D, vert())
+end function
+
+function engine.create.quad~& (x1 as single, y1 as single, w as single, h as single)
+    dim vert(7) as single
+    vert(0) = x1 : vert(1) = y1
+    vert(2) = x1+w : vert(3) = y1
+    vert(4) = x1+w : vert(5) = y1+h
+    vert(6) = x1 : vert(7) = y1+h
+    '@debug-part:start
+    engine_internal_debug_log "engine.create.quad() --> engine.create()", 1
+    '@debug-part:end
+    engine.create.quad~& = engine.create(ENGINE_GEOMETRY_QUAD, ENGINE_2D, vert())
 end function
 
 sub engine.destroy (m_ref as _unsigned long)
