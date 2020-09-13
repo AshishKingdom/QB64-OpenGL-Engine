@@ -54,40 +54,70 @@ SUB engine.draw (m_ref as _unsigned long)
     '@debug-part:end
     
     _glEnableClientState _GL_VERTEX_ARRAY
-    _glVertexPointer 3, _GL_FLOAT, 13, _offset(engine_internal_vertex_list())+13*(engine_internal_mesh_list(m_ref).mesh_v_index)
-    select case engine_internal_mesh_list(m_ref).geometry_type
-        case ENGINE_GEOMETRY_POINT
-            if engine_internal_mesh_list(m_ref).border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
-            _glPointSize engine_internal_mesh_list(m_ref).border_thickness
-            _glColor3ub 0,0,0
-            _glDrawArrays _GL_POINTS, 0, engine_internal_mesh_list(m_ref).mesh_total_v
-        case ENGINE_GEOMETRY_LINE
-            if engine_internal_mesh_list(m_ref).border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
-            _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
-            _glColor3ub 0,0,0
-            _glDrawArrays _GL_LINES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
-        case ENGINE_GEOMETRY_TRIANGLE
+    if engine_internal_mesh_list(m_ref).geometry_type = ENGINE_GEOMETRY_ELLIPSE then
+        'we will use pre-calculated normalized vertex arrays here. by scaling transformation(s)
+        dim d as single, w as single, h as single, shape_detail as _unsigned integer
+        w = engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+1).v.x
+        h = engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+1).v.y
+        d = (w + h) / 2
+        if d>=0 and d<50 then
+            _glVertexPointer 3, _GL_FLOAT, 0, _offset(engine_internal_ev1())
+            shape_detail = ubound(engine_internal_ev1)
+        elseif d>=50 and d<700 then
+            _glVertexPointer 3, _GL_FLOAT, 0, _offset(engine_internal_ev2())
+            shape_detail = ubound(engine_internal_ev2)
+        else
+            _glVertexPointer 3, _GL_FLOAT, 0, _offset(engine_internal_ev3())
+            shape_detail = ubound(engine_internal_ev3)
+        end if
+        _glPushMatrix
+            _glTranslatef engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index).v.x,engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index).v.y,engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index).v.z
+            _glScalef w/2,h/2,1
             if engine_internal_mesh_list(m_ref).fill = 1 then
                 _glColor3ub 255,255,255
-                _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+                _glDrawArrays _GL_TRIANGLE_FAN, 0, shape_detail
             end if
             if engine_internal_mesh_list(m_ref).border = 1 then
                 _glColor3ub 0,0,0
                 _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
-                _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+                _glDrawArrays _GL_LINE_LOOP, 0, shape_detail
             end if
-        case ENGINE_GEOMETRY_QUAD
-            if engine_internal_mesh_list(m_ref).fill = 1 then
-                _glColor3ub 255,255,255
-                _glDrawArrays _GL_QUADS, 0, engine_internal_mesh_list(m_ref).mesh_total_v
-            end if
-            if engine_internal_mesh_list(m_ref).border = 1 then
+        _glPopMatrix
+    else
+        _glVertexPointer 3, _GL_FLOAT, 13, _offset(engine_internal_vertex_list())+13*(engine_internal_mesh_list(m_ref).mesh_v_index)
+        select case engine_internal_mesh_list(m_ref).geometry_type
+            case ENGINE_GEOMETRY_POINT
+                if engine_internal_mesh_list(m_ref).border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
+                _glPointSize engine_internal_mesh_list(m_ref).border_thickness
                 _glColor3ub 0,0,0
+                _glDrawArrays _GL_POINTS, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+            case ENGINE_GEOMETRY_LINE
+                if engine_internal_mesh_list(m_ref).border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
                 _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
-                _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
-            end if
-    end select
-    
+                _glColor3ub 0,0,0
+                _glDrawArrays _GL_LINES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+            case ENGINE_GEOMETRY_TRIANGLE
+                if engine_internal_mesh_list(m_ref).fill = 1 then
+                    _glColor3ub 255,255,255
+                    _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+                end if
+                if engine_internal_mesh_list(m_ref).border = 1 then
+                    _glColor3ub 0,0,0
+                    _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
+                    _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+                end if
+            case ENGINE_GEOMETRY_QUAD
+                if engine_internal_mesh_list(m_ref).fill = 1 then
+                    _glColor3ub 255,255,255
+                    _glDrawArrays _GL_QUADS, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+                end if
+                if engine_internal_mesh_list(m_ref).border = 1 then
+                    _glColor3ub 0,0,0
+                    _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
+                    _glDrawArrays _GL_LINE_LOOP, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+                end if
+        end select
+    end if
     engine_draw_skip_render:
     
     _glDisableClientState _GL_VERTEX_ARRAY
@@ -121,11 +151,11 @@ end sub
 sub engine.enable_border (m_ref as _unsigned long)
     '@debug-part:start
     if m_ref>ubound(engine_internal_mesh_list) then
-        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        engine_internal_debug_log "engine.enable_border() : mesh handle ('m_ref') out of bounds.", 1
         exit sub
     end if
     if engine_internal_mesh_list(m_ref).used = 0 then
-        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        engine_internal_debug_log "engine.enable_border() : invalid mesh handle ('m_ref') passed.",1
         exit sub
     end if
     '@debug-part:end
@@ -138,11 +168,11 @@ end sub
 sub engine.disable_border (m_ref as _unsigned long)
     '@debug-part:start
     if m_ref>ubound(engine_internal_mesh_list) then
-        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        engine_internal_debug_log "engine.disable_border() : mesh handle ('m_ref') out of bounds.", 1
         exit sub
     end if
     if engine_internal_mesh_list(m_ref).used = 0 then
-        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        engine_internal_debug_log "engine.disable_border() : invalid mesh handle ('m_ref') passed.",1
         exit sub
     end if
     '@debug-part:end
@@ -155,11 +185,11 @@ end sub
 sub engine.enable_fill(m_ref as _unsigned long)
     '@debug-part:start
     if m_ref>ubound(engine_internal_mesh_list) then
-        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        engine_internal_debug_log "engine.enable_fill() : mesh handle ('m_ref') out of bounds.", 1
         exit sub
     end if
     if engine_internal_mesh_list(m_ref).used = 0 then
-        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        engine_internal_debug_log "engine.enable_fill() : invalid mesh handle ('m_ref') passed.",1
         exit sub
     end if
     '@debug-part:end
@@ -172,11 +202,11 @@ end sub
 sub engine.disable_fill (m_ref as _unsigned long)
     '@debug-part:start
     if m_ref>ubound(engine_internal_mesh_list) then
-        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        engine_internal_debug_log "engine.disable_fill() : mesh handle ('m_ref') out of bounds.", 1
         exit sub
     end if
     if engine_internal_mesh_list(m_ref).used = 0 then
-        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        engine_internal_debug_log "engine.disable_fill() : invalid mesh handle ('m_ref') passed.",1
         exit sub
     end if
     '@debug-part:end
@@ -189,18 +219,53 @@ end sub
 sub engine.set_border (m_ref as _unsigned long, w as _unsigned integer)
     '@debug-part:start
     if m_ref>ubound(engine_internal_mesh_list) then
-        engine_internal_debug_log "engine.draw() : mesh handle ('m_ref') out of bounds.", 1
+        engine_internal_debug_log "engine.set_border() : mesh handle ('m_ref') out of bounds.", 1
         exit sub
     end if
     if engine_internal_mesh_list(m_ref).used = 0 then
-        engine_internal_debug_log "engine.draw() : invalid mesh handle ('m_ref') passed.",1
+        engine_internal_debug_log "engine.set_border() : invalid mesh handle ('m_ref') passed.",1
         exit sub
     end if
     '@debug-part:end
     engine_internal_mesh_list(m_ref).border = 1
     engine_internal_mesh_list(m_ref).border_thickness = w
     '@debug-part:start
-    engine_internal_debug_log "engine.set_border() : border thickness set to "+str$(w)+" for mesh for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
+    engine_internal_debug_log "engine.set_border() : border thickness set to "+str$(w)+" for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
+    '@debug-part:end
+end sub
+
+sub engine.set_size (m_ref as _unsigned long, w as single, h as single) 'sets the rect/ellipse width & height
+    '@debug-part:start
+    if m_ref>ubound(engine_internal_mesh_list) then
+        engine_internal_debug_log "engine.set_size() : mesh handle ('m_ref') out of bounds.", 1
+        exit sub
+    end if
+    if engine_internal_mesh_list(m_ref).used = 0 then
+        engine_internal_debug_log "engine.set_size() : invalid mesh handle ('m_ref') passed.",1
+        exit sub
+    end if
+    if engine_internal_mesh_list(m_ref).geometry_type <> ENGINE_GEOMETRY_ELLIPSE and engine_internal_mesh_list(m_ref).geometry_type <> ENGINE_GEOMETRY_QUAD then
+        engine_internal_debug_log "engine.set_size() : geometry type of the mesh handle should only be ENGINE_GEOMETRY_ELLIPSE or ENGINE_GEOMETRY_QUAD. Invalid 'm_ref' passed", 1
+        exit function
+    end if
+    '@debug-part:end
+    if engine_internal_mesh_list(m_ref).geometry_type = ENGINE_GEOMETRY_ELLIPSE then
+        engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+1).v.x = w 'set new width
+        engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+1).v.y = h 'set new height
+    else
+        dim x1 as single, y1 as single
+        x1 = engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index).v.x
+        y1 = engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index).v.y
+        
+        engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+1).v.x = x1+w '[1]
+        
+        engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+2).v.x = x1+w '[2]
+        engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+2).v.y = y1+h '[2]
+        
+        engine_internal_vertex_list(engine_internal_mesh_list(m_ref).mesh_v_index+3).v.y = y1+h '[3]
+    end if
+    '@debug-part:start
+    engine_internal_debug_log "engine.set_size() : new size ("+str$(w)+","+str$(h)+") for mesh <"+engine_internal_mesh_list(m_ref).ID+">", 1
     '@debug-part:end
 end sub
 
@@ -213,7 +278,7 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
         engine_internal_debug_log "engine.create() : invalid 'dimension' passed", 1
         exit function
     end if
-    if mesh_type<1 or mesh_type>4 then
+    if mesh_type<1 or mesh_type>4 and mesh_type<>ENGINE_GEOMETRY_ELLIPSE then
         engine_internal_debug_log "engine.create() : invalid 'mesh_type' passed", 1
         exit function
     else
@@ -267,15 +332,17 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
         end select
         
         found = 0
+        n_vert = mesh_type
+        if mesh_type = ENGINE_GEOMETRY_ELLIPSE then n_vert = 2
         'the value of mesh_type is set such that it is also equal to the number of vertices present in that shape.
         'like, the value of ENGINE_GEOMETRY_TRIANGLE and ENGINE_GEOMETRY_POINT is 3 and 1 respectively. And the number
         'of vertice(s) in these are also 3 and 1 respectively.
         
         'checking for free area in engine_internal_vertex_list() array.
         
-        for i = 0 to ubound(engine_internal_vertex_list) - mesh_type + 1
+        for i = 0 to ubound(engine_internal_vertex_list) - n_vert + 1
             tmp1 = 0
-            for i3 = i to i + mesh_type - 1
+            for i3 = i to i + n_vert - 1
                 tmp1 = tmp1 + engine_internal_vertex_list(i3).used
             next
             if tmp1 = 0 then
@@ -289,7 +356,7 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
                     engine_internal_vertex_list(i).used = 1
                     engine_internal_vertex_list(i).v.x = v(i3)
                     engine_internal_vertex_list(i).v.y = v(i3+1)
-                    if mesh_type = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
+                    if dimension = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
                     i = i + 1
                 next
                 exit for
@@ -300,12 +367,12 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
             'no free space found in the engine_internal_vertex_list() array where we can add vertices.
             'so, we'll create new space.
             i = ubound(engine_internal_vertex_list)
-            redim _preserve engine_internal_vertex_list(i*2+mesh_type) as engine_internal_type_vertex
+            redim _preserve engine_internal_vertex_list(i*2+n_vert) as engine_internal_type_vertex
 
             'last try for a free space near the array upper found.
-            for i2 = i - mesh_type + 1 to i 'mesh_type is used also being used as no. of vertice in the geometry type
+            for i2 = i - n_vert + 1 to i 'mesh_type is used also being used as no. of vertice in the geometry type
                 tmp1 = 0
-                for i3 = i2 to i2 + mesh_type - 1
+                for i3 = i2 to i2 + n_vert - 1
                     tmp1 = tmp1 + engine_internal_vertex_list(i3).used
                 next
                 if tmp1 = 0 then
@@ -325,7 +392,7 @@ function engine.create~& (mesh_type as integer, dimension as integer, v() as sin
                 engine_internal_vertex_list(i).used = 1
                 engine_internal_vertex_list(i).v.x = v(i3)
                 engine_internal_vertex_list(i).v.y = v(i3+1)
-                if mesh_type = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
+                if dimension = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
                 i = i + 1
             next
         end if
@@ -378,6 +445,15 @@ function engine.create.quad~& (x1 as single, y1 as single, w as single, h as sin
     engine_internal_debug_log "engine.create.quad() --> engine.create()", 1
     '@debug-part:end
     engine.create.quad~& = engine.create(ENGINE_GEOMETRY_QUAD, ENGINE_2D, vert())
+end function
+
+function engine.create.ellipse~& (x1 as single, y1 as single, w as single, h as single)
+    dim vert(3) as single
+    vert(0) = x1 : vert(1) = y1 : vert(2) = w : vert(3) = h
+    '@debug-part:start
+    engine_internal_debug_log "engine.create.ellipse() --> engine.create()", 1
+    '@debug-part:end
+    engine.create.ellipse~& = engine.create(ENGINE_GEOMETRY_ELLIPSE, ENGINE_2D, vert())
 end function
 
 sub engine.destroy (m_ref as _unsigned long)
@@ -455,3 +531,22 @@ function engine_internal_newID$ ()
     
     engine_internal_newID$ = newID
 end function
+
+sub engine_internal_generate_ellipse_vert()
+    dim i as single, j as _unsigned integer
+    j = 1
+    for i = 0 to _pi(2) step _pi(2/32)
+        engine_internal_ev1(j).x = cos(i) : engine_internal_ev1(j).y = sin(i)
+        j = j + 1
+    next
+    j = 1
+    for i = 0 to _pi(2) step _pi(2/100)
+        engine_internal_ev2(j).x = cos(i) : engine_internal_ev2(j).y = sin(i)
+        j = j + 1
+    next
+    j = 1
+    for i = 0 to _pi(2) step _pi(2/500)
+        engine_internal_ev3(j).x = cos(i) : engine_internal_ev3(j).y = sin(i)
+        j = j + 1
+    next
+end sub

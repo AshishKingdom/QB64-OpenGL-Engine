@@ -14,6 +14,7 @@ CONST ENGINE_GEOMETRY_POINT = 1
 CONST ENGINE_GEOMETRY_LINE = 2
 CONST ENGINE_GEOMETRY_TRIANGLE = 3
 CONST ENGINE_GEOMETRY_QUAD = 4
+CONST ENGINE_GEOMETRY_ELLIPSE = 5
 
 CONST ENGINE_2D = 11
 CONST ENGINE_3D = 12
@@ -58,6 +59,10 @@ end type
 
 redim shared engine_internal_vertex_list(3) as engine_internal_type_vertex
 redim shared engine_internal_mesh_list(0) as engine_internal_type_mesh
+'below arrays will be used for storing normalized ellipse vertices
+dim shared engine_internal_ev1(1 to 32) as engine_internal_type_vec3
+dim shared engine_internal_ev2(1 to 100) as engine_internal_type_vec3
+dim shared engine_internal_ev3(1 to 500) as engine_internal_type_vec3
 
 dim shared engine_enable_drawing as _byte, engine_coord_system as _byte, engine_texture as _byte
 dim shared engine_canvas as _unsigned long, engine_clear_color as engine_internal_type_vec3
@@ -77,6 +82,9 @@ engine_clear_color.x = 0.4
 engine_clear_color.y = 0.4
 engine_clear_color.z = 0.4
 
+engine_internal_generate_ellipse_vert
+
 _GLRENDER _ONLY
+_FPS 60
 
 screen engine_canvas
