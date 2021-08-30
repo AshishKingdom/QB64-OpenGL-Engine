@@ -15,6 +15,8 @@ SUB _GL ()
     $END IF
     if engine_enable_drawing = 0 then exit sub
     _glViewPort 0, 0, _width, _height
+    _glClearColor engine_clear_color.x, engine_clear_color.y, engine_clear_color.z, 1
+    _glClear _GL_COLOR_BUFFER_BIT OR _GL_DEPTH_BUFFER_BIT
     _glMatrixMode _GL_MODELVIEW
     _glLoadIdentity
     'code of transformation between 2 modes of coordinate system done here
@@ -30,109 +32,218 @@ SUB _GL ()
     end if
     engine.main
 END SUB
-SUB engine.draw (m_ref as _unsigned long)
+SUB engine.draw (obj as engine_internal_type_mesh) '(m_ref as _unsigned long)
+    if obj.used = 0 or obj.hidden = 1 then exit sub
     _glEnableClientState _GL_VERTEX_ARRAY
-    _glVertexPointer 3, _GL_FLOAT, 13, _offset(engine_internal_vertex_list())+13*(engine_internal_mesh_list(m_ref).mesh_v_index)
-    _glDrawArrays _GL_TRIANGLES, 0, engine_internal_mesh_list(m_ref).mesh_total_v
+    if obj.geometry_type = ENGINE_GEOMETRY_ELLIPSE then
+        'ellipse are rendered using pre-calculated normalized coordinates
+        dim d as single, shape_detail as _unsigned integer, w as single, h as single
+        w = _memget(obj.mesh_data, obj.mesh_data.OFFSET + ENGINE_VERT_MEMORY, single)
+        h = _memget(obj.mesh_data, obj.mesh_data.OFFSET + ENGINE_VERT_MEMORY + 4, single)
+        d =  (w + h) / 2
+        if d>=0 and d<50 then 'we will select the array according to the size of the array.
+            _glVertexPointer 3, _GL_FLOAT, 0, _offset(engine_internal_ev1())
+            shape_detail = ubound(engine_internal_ev1)
+        elseif d>=50 and d<700 then
+            _glVertexPointer 3, _GL_FLOAT, 0, _offset(engine_internal_ev2())
+            shape_detail = ubound(engine_internal_ev2)
+        else
+            _glVertexPointer 3, _GL_FLOAT, 0, _offset(engine_internal_ev3())
+            shape_detail = ubound(engine_internal_ev3)
+        end if
+        _glPushMatrix
+            _glTranslatef _memget(obj.mesh_data, obj.mesh_data.OFFSET, single),_memget(obj.mesh_data, obj.mesh_data.OFFSET + 4, single),0
+            _glScalef w/2,h/2,1
+            if obj.fill = 1 then
+                _glColor3f obj.fill_color.x, obj.fill_color.y, obj.fill_color.z
+                _glDrawArrays _GL_TRIANGLE_FAN, 0, shape_detail
+            end if
+            if obj.border = 1 then
+                _glColor3f obj.border_color.x, obj.border_color.y, obj.border_color.z
+                _glLineWidth engine_internal_mesh_list(m_ref).border_thickness
+                _glDrawArrays _GL_LINE_LOOP, 0, shape_detail
+            end if
+        _glPopMatrix
+    else
+        _glVertexPointer 3, _GL_FLOAT, 24, obj.mesh_data.OFFSET
+        select case obj.geometry_type
+            case ENGINE_GEOMETRY_POINT
+                if obj.border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
+                _glPointSize obj.border_thickness
+                _glColor3f obj.border_color.x, obj.border_color.y, obj.border_color.z
+                _glDrawArrays _GL_POINTS, 0, obj.mesh_total_v
+            case ENGINE_GEOMETRY_LINE
+                if obj.border = 0 then goto engine_draw_skip_render 'border is 0, so no need of rendering it
+                _glLineWidth obj.border_thickness
+                _glColor3f obj.border_color.x, obj.border_color.y, obj.border_color.z
+                _glDrawArrays _GL_LINES, 0, obj.mesh_total_v
+            case ENGINE_GEOMETRY_TRIANGLE
+                if obj.fill = 1 then
+                    _glColor3f obj.fill_color.x, obj.fill_color.y, obj.fill_color.z
+                    _glDrawArrays _GL_TRIANGLES, 0, obj.mesh_total_v
+                end if
+                if obj.border = 1 then
+                    _glColor3f obj.border_color.x, obj.border_color.y, obj.border_color.z
+                    _glLineWidth obj.border_thickness
+                    _glDrawArrays _GL_LINE_LOOP, 0, obj.mesh_total_v
+                end if
+            case ENGINE_GEOMETRY_QUAD
+                if obj.fill = 1 then
+                    _glColor3f obj.fill_color.x, obj.fill_color.y, obj.fill_color.z
+                    _glDrawArrays _GL_QUADS, 0, obj.mesh_total_v
+                end if
+                if obj.border = 1 then
+                     _glColor3f obj.border_color.x, obj.border_color.y, obj.border_color.z
+                    _glLineWidth obj.border_thickness
+                    _glDrawArrays _GL_LINE_LOOP, 0, obj.mesh_total_v
+                end if
+        end select
+    end if
+    engine_draw_skip_render:
     _glDisableClientState _GL_VERTEX_ARRAY
+end sub
+sub engine.set_background(c as _unsigned long)
+    dim r as single, g as single, b as single
+    r = _red32(c) : g = _green32(c) : b = _blue32(c)
+    engine_clear_color.x = r/255
+    engine_clear_color.y = g/255
+    engine_clear_color.z = b/255
+end sub
+sub engine.enable_drawing ()
+    engine_enable_drawing = 1
+end sub
+sub engine.disable_drawing ()
+    engine_enable_drawing = 0
+end sub
+sub engine.enable_border (obj as engine_internal_type_mesh)
+    obj.border = 1
+end sub
+sub engine.disable_border (obj as engine_internal_type_mesh)
+    obj.border = 0
+end sub
+sub engine.enable_fill(obj as engine_internal_type_mesh)
+    obj.fill = 1
+end sub
+sub engine.disable_fill (obj as engine_internal_type_mesh)
+    obj.fill = 0
+end sub
+sub engine.set_border (obj as engine_internal_type_mesh, w as _unsigned integer)
+    obj.border = engine_enable_border
+    obj.border_thickness = w
+end sub
+sub engine.set_size (obj as engine_internal_type_mesh, w as single, h as single) 'sets the rect/ellipse width & height
+    if obj.geometry_type = ENGINE_GEOMETRY_ELLIPSE then
+        engine_internal_memput2 obj.mesh_data, ENGINE_VERT_MEMORY, w, h 'set new width and height
+    else
+        dim x1 as single, y1 as single
+        x1 = _memget(obj.mesh_data, obj.mesh_data.OFFSET, single)
+        y1 = _memget(obj.mesh_data, obj.mesh_data.OFFSET + 4, single)
+        engine_internal_memput1 obj.mesh_data, ENGINE_VERT_MEMORY, x1+w '[1]
+        engine_internal_memput2 obj.mesh_data, ENGINE_VERT_MEMORY*2, x1+w, y1+h '[2], [2]
+        engine_internal_memput1 obj.mesh_data, ENGINE_VERT_MEMORY*3 + 4, y1+h  ',[3]
+    end if
 end sub
 '#################################################################
 '---------------- OBJECT CREATION & DESTRUCTION-------------------
 '#################################################################
-function engine.create~& (mesh_type as integer, dimension as integer, v() as single)
-        dim found as _byte, i as _unsigned long, i2 as _unsigned long, i3 as _unsigned long, n_vert as _unsigned long
-        dim tmp1 as integer, v_ref as _unsigned long
-        'check if there is any element in engine_internal_mesh_list which can be reused.
-        for i = 0 to ubound(engine_internal_mesh_list)
-            if engine_internal_mesh_list(i).used = 0 then
-                found = 1
-                m_ref = i
-                exit for
-            end if
-        next
-        if found = 0 then 'means, all mesh elements are in use, so create a new one.
-            m_ref = ubound(engine_internal_mesh_list) + 1
-            redim _preserve engine_internal_mesh_list(m_ref) as engine_internal_type_mesh
-        end if
-        engine_internal_mesh_list(m_ref).geometry_type = mesh_type
-        engine_internal_mesh_list(m_ref).used = -1
-        engine_internal_mesh_list(m_ref).id = engine_internal_newID
-        n_vert = ubound(v) - lbound(v) + 1 
-        'verifying the dimension type with the array v() passed
-        select case dimension
-            case ENGINE_2D
-                engine_internal_mesh_list(m_ref).mesh_total_v = n_vert / 2
-            case ENGINE_3D
-                engine_internal_mesh_list(m_ref).mesh_total_v = n_vert / 3
-        end select
-        found = 0
-        'the value of mesh_type is set such that it is also equal to the number of vertices present in that shape.
-        'like, the value of ENGINE_GEOMETRY_TRIANGLE and ENGINE_GEOMETRY_POINT is 3 and 1 respectively. And the number
-        'of vertice(s) in these are also 3 and 1 respectively.
-        'checking for free area in engine_internal_vertex_list() array.
-        for i = 0 to ubound(engine_internal_vertex_list) - mesh_type + 1
-            tmp1 = 0
-            for i3 = i to i + mesh_type - 1
-                tmp1 = tmp1 + engine_internal_vertex_list(i3).used
-            next
-            if tmp1 = 0 then
-                found = 1
-                engine_internal_mesh_list(m_ref).mesh_v_index = i
-                if dimension = ENGINE_2D then tmp1 = 2 else tmp1 = 3 'storing number of elements per coordinate in tmp1
-                for i3 = 0 to ubound(v) step tmp1
-                    engine_internal_vertex_list(i).used = -1
-                    engine_internal_vertex_list(i).v.x = v(i3)
-                    engine_internal_vertex_list(i).v.y = v(i3+1)
-                    if mesh_type = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
-                    i = i + 1
-                next
-                exit for
-            end if
-        next
-        if found = 0 then
-            'no free space found in the engine_internal_vertex_list() array where we can add vertices.
-            'so, we'll create new space.
-            i = ubound(engine_internal_vertex_list)
-            redim _preserve engine_internal_vertex_list(i*2+mesh_type) as engine_internal_type_vertex
-            'last try for a free space near the array upper found.
-            for i2 = i - mesh_type + 1 to i 'mesh_type is used also being used as no. of vertice in the geometry type
-                tmp1 = 0
-                for i3 = i2 to i2 + mesh_type - 1
-                    tmp1 = engine_internal_vertex_list(i3).used
-                next
-                if tmp1 = 0 then
-                    found = 1
-                    i = i2
-                    exit for
-                end if
-            next
-            if found = 0 then i = i + 1
-            engine_internal_mesh_list(m_ref).mesh_v_index = i
-            if mesh_type = ENGINE_2D then tmp1 = 2 else tmp1 = 3 'storing number of elements per coordinate in tmp1
-            for i3 = 0 to ubound(v) step tmp1
-                engine_internal_vertex_list(i).used = -1
-                engine_internal_vertex_list(i).v.x = v(i3)
-                engine_internal_vertex_list(i).v.y = v(i3+1)
-                if mesh_type = ENGINE_3D then engine_internal_vertex_list(i).v.z = v(i3+2)
-                i = i + 1
-            next
-        end if
-        engine.create~& = m_ref
-end function
-function engine.create.triangle~& (x1 as single, y1 as single, x2 as single, y2 as single,x3 as single, y3 as single)
-    dim vert(5) as single
-    vert(0) = x1 : vert(1) = y1
-    vert(2) = x2 : vert(3) = y2
-    vert(4) = x3 : vert(5) = y3
-    engine.create.triangle~& = engine.create(ENGINE_GEOMETRY_TRIANGLE, ENGINE_2D, vert())
-end function
-sub engine.destroy (m_ref as _unsigned long)
-    dim i as _unsigned long
-    for i = engine_internal_mesh_list(m_ref).mesh_v_index to engine_internal_mesh_list(m_ref).mesh_v_index + engine_internal_mesh_list(m_ref).mesh_total_v - 1
-        engine_internal_vertex_list(i).used = 0
-    next
-    engine_internal_mesh_list(m_ref).used = 0
-    engine_internal_mesh_list(m_ref).ID = ""
+sub engine.create.triangle (obj as engine_internal_type_mesh, x1 as single, y1 as single, x2 as single, y2 as single,x3 as single, y3 as single)
+    if obj.mesh_data.SIZE <> 0 then
+        _memfree obj.mesh_data
+    end if
+    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY * 3)
+    'put all the data in the mem block
+    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
+    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, x2, y2, 0
+    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY * 2, x3, y3, 0
+    obj.geometry_type = ENGINE_GEOMETRY_TRIANGLE
+    obj.used = 1
+    obj.fill = engine_enable_fill
+    obj.fill_color =  engine_fill_color
+    obj.border = engine_enable_border
+    obj.border_color = engine_border_color
+    obj.border_thickness = engine_border_thickness
+    obj.mesh_total_v = 3
+end sub
+sub engine.create.point (obj as engine_internal_type_mesh, x1 as single, y1 as single)
+    if obj.mesh_data.SIZE <> 0 then
+        _memfree obj.mesh_data
+    end if
+    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY)
+    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
+    obj.geometry_type = ENGINE_GEOMETRY_POINT
+    obj.used = 1
+    obj.fill = engine_enable_fill
+    obj.fill_color =  engine_fill_color
+    obj.border = engine_enable_border
+    obj.border_color = engine_border_color
+    obj.border_thickness = engine_border_thickness
+    obj.mesh_total_v = 1
+end sub
+sub engine.create.line (obj as engine_internal_type_mesh, x1 as single, y1 as single, x2 as single, y2 as single)
+    if obj.mesh_data.SIZE <> 0 then
+        _memfree obj.mesh_data
+    end if
+    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY*2)
+    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
+    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, x2, y2, 0
+    obj.geometry_type = ENGINE_GEOMETRY_LINE
+    obj.used = 1
+    obj.fill = engine_enable_fill
+    obj.fill_color =  engine_fill_color
+    obj.border = engine_enable_border
+    obj.border_color = engine_border_color
+    obj.border_thickness = engine_border_thickness
+    obj.mesh_total_v = 2
+end sub
+sub engine.create.quad (obj as engine_internal_type_mesh, x1 as single, y1 as single, w as single, h as single)
+    if obj.mesh_data.SIZE <> 0 then
+        _memfree obj.mesh_data
+    end if
+    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY*4)
+    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
+    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, x1+w, y1, 0
+    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY*2, x1+w, y1+h, 0
+    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY*3, x1, y1+h, 0
+    obj.geometry_type = ENGINE_GEOMETRY_QUAD
+    obj.used = 1
+    obj.fill = engine_enable_fill
+    obj.fill_color =  engine_fill_color
+    obj.border = engine_enable_border
+    obj.border_color = engine_border_color
+    obj.border_thickness = engine_border_thickness
+    obj.mesh_total_v = 4
+end sub
+sub engine.create.ellipse (obj as engine_internal_type_mesh, x1 as single, y1 as single, w as single, h as single)
+    if obj.mesh_data.SIZE <> 0 then
+        _memfree obj.mesh_data
+    end if
+    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY*2)
+    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
+    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, w, h, 0
+    obj.geometry_type = ENGINE_GEOMETRY_ELLIPSE
+    obj.used = 1
+    obj.fill = engine_enable_fill
+    obj.fill_color =  engine_fill_color
+    obj.border = engine_enable_border
+    obj.border_color = engine_border_color
+    obj.border_thickness = engine_border_thickness
+    obj.mesh_total_v = 0
+end sub
+sub engine.destroy (obj as engine_internal_type_mesh)
+    ' dim i as _unsigned long
+    ' for i = engine_internal_mesh_list(m_ref).mesh_v_index to engine_internal_mesh_list(m_ref).mesh_v_index + engine_internal_mesh_list(m_ref).mesh_total_v - 1
+        ' engine_internal_vertex_list(i).used = 0
+    ' next
+    _memfree obj.mesh_data
+    obj.geometry_type = 0
+    obj.fill = 0
+    obj.border = 0
+    obj.hidden = 0
+    obj.mesh_total_v = 0
+    obj.border_thickness = 0
+    obj.fill_color.x = 0 : obj.fill_color.y = 0 : obj.fill_color.z = 0
+    obj.border_color.x = 0 : obj.border_color.y = 0 : obj.border_color.z = 0
+    obj.used = 0
 end sub
 '#################################################################
 '------------------------- INTERNALS -----------------------------
@@ -150,3 +261,33 @@ function engine_internal_newID$ ()
     next
     engine_internal_newID$ = newID
 end function
+sub engine_internal_generate_ellipse_vert()
+    dim i as single, j as _unsigned integer
+    j = 1
+    for i = 0 to _pi(2) step _pi(2/32)
+        engine_internal_ev1(j).x = cos(i) : engine_internal_ev1(j).y = sin(i)
+        j = j + 1
+    next
+    j = 1
+    for i = 0 to _pi(2) step _pi(2/100)
+        engine_internal_ev2(j).x = cos(i) : engine_internal_ev2(j).y = sin(i)
+        j = j + 1
+    next
+    j = 1
+    for i = 0 to _pi(2) step _pi(2/500)
+        engine_internal_ev3(j).x = cos(i) : engine_internal_ev3(j).y = sin(i)
+        j = j + 1
+    next
+end sub
+sub engine_internal_memput1 (m as _mem, p as _unsigned long, d1 as single)
+    _memput m, m.OFFSET + p, d1
+end sub
+sub engine_internal_memput2 (m as _mem, p as _unsigned long, d1 as single, d2 as single)
+    _memput m, m.OFFSET + p, d1
+    _memput m, m.OFFSET + p + 4, d2
+end sub
+sub engine_internal_memput3 (m as _mem, p as _unsigned long, d1 as single, d2 as single, d3 as single)
+    _memput m, m.OFFSET + p, d1
+    _memput m, m.OFFSET + p + 4, d2
+    _memput m, m.OFFSET + p + 8, d3
+end sub
