@@ -1,0 +1,22 @@
+# To generate error free code
+name: engine_method_noerror.bas File Generator
+on: [push]
+jobs:
+    create-engine-no-error-file:
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v2
+        - name: Run python script
+        - run: echo running script
+        - run: python auto-generate.py
+        - name: config git and update file
+        - run: git config --local user.email 'ashishkushwahacb@gmail.com'
+        - run: git config --local user.name 'auto-generate'
+        - run: git add engine_method_noerror.bas
+        - run: if [[ $(git diff --cached | wc -l) -gt 0 ]]; git commit -m "update engine_method_noerror.bas"; fi
+        - name: push into the repo
+        if: github.event_name == 'push'
+        uses: ad-m/github-push-action@19caa5c351f47734055690f7d01aaaef2f9114d5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: master
