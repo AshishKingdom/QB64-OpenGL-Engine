@@ -6,19 +6,24 @@
 'LICENSE: GPL v3.0
 '-----------------------------------------------------------------
 '#################################################################
+
 '#################################################################
 '--------------------- RENDERING PART- ---------------------------
 '#################################################################
+
 SUB _GL ()
     $IF WIN THEN
         if _screenicon then exit sub
     $END IF
     if engine_enable_drawing = 0 then exit sub
+    
     _glViewPort 0, 0, _width, _height
     _glClearColor engine_clear_color.x, engine_clear_color.y, engine_clear_color.z, 1
     _glClear _GL_COLOR_BUFFER_BIT OR _GL_DEPTH_BUFFER_BIT
+    
     _glMatrixMode _GL_MODELVIEW
     _glLoadIdentity
+    
     'code of transformation between 2 modes of coordinate system done here
     '1. QB64/Qbasic (DEFAULT): Default in which (0,0) is at the top-left corner of the screen.
     'and x & y increases as we move towards right and bottom respectively.
@@ -30,10 +35,13 @@ SUB _GL ()
         _glTranslatef -1,1,0
         _glScalef 1/(0.5*_width(0)), -1/(0.5*_height(0)),1/(0.5*_width(0))
     end if
+    
     engine.main
 END SUB
+
 SUB engine.draw (obj as engine_internal_type_mesh) '(m_ref as _unsigned long)
     if obj.used = 0 or obj.hidden = 1 then exit sub
+    
     _glEnableClientState _GL_VERTEX_ARRAY
     if obj.geometry_type = ENGINE_GEOMETRY_ELLIPSE then
         'ellipse are rendered using pre-calculated normalized coordinates
@@ -99,9 +107,12 @@ SUB engine.draw (obj as engine_internal_type_mesh) '(m_ref as _unsigned long)
                 end if
         end select
     end if
+
     engine_draw_skip_render:
+    
     _glDisableClientState _GL_VERTEX_ARRAY
 end sub
+
 sub engine.set_background(c as _unsigned long)
     dim r as single, g as single, b as single
     r = _red32(c) : g = _green32(c) : b = _blue32(c)
@@ -109,185 +120,88 @@ sub engine.set_background(c as _unsigned long)
     engine_clear_color.y = g/255
     engine_clear_color.z = b/255
 end sub
+
 sub engine.enable_drawing ()
     engine_enable_drawing = 1
 end sub
+
 sub engine.disable_drawing ()
     engine_enable_drawing = 0
 end sub
+
 sub engine.enable_border (obj as engine_internal_type_mesh)
     obj.border = 1
 end sub
+
 sub engine.disable_border (obj as engine_internal_type_mesh)
     obj.border = 0
 end sub
+
 sub engine.enable_fill(obj as engine_internal_type_mesh)
     obj.fill = 1
 end sub
+
 sub engine.disable_fill (obj as engine_internal_type_mesh)
     obj.fill = 0
 end sub
+
 sub engine.set_border (obj as engine_internal_type_mesh, w as _unsigned integer)
     obj.border = engine_enable_border
     obj.border_thickness = w
 end sub
+
 sub engine.set_size (obj as engine_internal_type_mesh, w as single, h as single) 'sets the rect/ellipse width & height
-    if obj.geometry_type = ENGINE_GEOMETRY_ELLIPSE then
-        engine_internal_memput2 obj.mesh_data, ENGINE_VERT_MEMORY, w, h 'set new width and height
-    else
-        dim x1 as single, y1 as single
-        x1 = _memget(obj.mesh_data, obj.mesh_data.OFFSET, single)
-        y1 = _memget(obj.mesh_data, obj.mesh_data.OFFSET + 4, single)
-        engine_internal_memput1 obj.mesh_data, ENGINE_VERT_MEMORY, x1+w '[1]
-        engine_internal_memput2 obj.mesh_data, ENGINE_VERT_MEMORY*2, x1+w, y1+h '[2], [2]
-        engine_internal_memput1 obj.mesh_data, ENGINE_VERT_MEMORY*3 + 4, y1+h  ',[3]
+    if obj.geometry_type <> ENGINE_GEOMETRY_ELLIPSE and obj.geometry_type <> ENGINE_GEOMETRY_QUAD then
+        engine_internal_debug_log "engine.set_size() : geometry type of the mesh handle should only be ENGINE_GEOMETRY_ELLIPSE or ENGINE_GEOMETRY_QUAD. Invalid 'obj' passed", 1
+        exit function
+    end if
+    engine_internal_debug_log "engine.set_size() : new size ("+str$(w)+","+str$(h)+") for mesh.", 1
+        engine_internal_debug_log "engine.create.triangle() : WARNING! deleting the vertex data of 'obj' passed.", 1
+    engine_internal_debug_log "engine.create.triangle() --> triange created", 1
+        engine_internal_debug_log "engine.create.point() : WARNING! deleting the vertex data of 'obj' passed.", 1
+    engine_internal_debug_log "engine.create.point() --> point created", 1
+        engine_internal_debug_log "engine.create.line() : WARNING! deleting the vertex data of 'obj' passed.", 1
+    engine_internal_debug_log "engine.create.line() --> line created", 1
+        engine_internal_debug_log "engine.create.quad() : WARNING! deleting the vertex data of 'obj' passed.", 1
+    engine_internal_debug_log "engine.create.quad() --> quad created", 1
+        engine_internal_debug_log "engine.create.ellipse() : WARNING! deleting the vertex data of 'obj' passed.", 1
+    engine_internal_debug_log "engine.create.ellipse() --> ellipse created", 1
+    if obj.mesh_data.SIZE = 0 then
+        engine_internal_debug_log "engine.destroy() : mesh handle ('obj') has no data.", 1
+        exit sub
+    end if
+    if obj.used = 0 then
+        engine_internal_debug_log "engine.destroy() : invalid mesh handle ('obj') passed.",1
+        exit sub
+    end if
+    engine_internal_debug_log "engine.destroy() : mesh_handle destroyed successfully.",1
+sub engine_internal_debug_log (a$, showtime as _byte) 'prints at console if it exists.
+    if _console <> -1 then
+        dim preDest as long
+        
+        preDest = _dest
+        _dest _console
+        if showtime = 1 then  print TIME$;" ";a$ else print a$
+        _dest preDest
     end if
 end sub
-'#################################################################
-'---------------- OBJECT CREATION & DESTRUCTION-------------------
-'#################################################################
-sub engine.create.triangle (obj as engine_internal_type_mesh, x1 as single, y1 as single, x2 as single, y2 as single,x3 as single, y3 as single)
-    if obj.mesh_data.SIZE <> 0 then
-        _memfree obj.mesh_data
+
+sub engine.mesh.printinfo (obj as engine_internal_type_mesh)
+    if obj.mesh_data.SIZE = 0 then
+        engine_internal_debug_log "engine.mesh.printinfo() : mesh handle ('m_ref') out of bounds.", 1
+        exit sub
     end if
-    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY * 3)
-    'put all the data in the mem block
-    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
-    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, x2, y2, 0
-    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY * 2, x3, y3, 0
-    obj.geometry_type = ENGINE_GEOMETRY_TRIANGLE
-    obj.used = 1
-    obj.fill = engine_enable_fill
-    obj.fill_color =  engine_fill_color
-    obj.border = engine_enable_border
-    obj.border_color = engine_border_color
-    obj.border_thickness = engine_border_thickness
-    obj.mesh_total_v = 3
-end sub
-sub engine.create.point (obj as engine_internal_type_mesh, x1 as single, y1 as single)
-    if obj.mesh_data.SIZE <> 0 then
-        _memfree obj.mesh_data
+    if obj.used = 0 then
+        engine_internal_debug_log "engine.mesh.printinfo() : invalid mesh handle ('m_ref') passed.",1
+        exit sub
     end if
-    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY)
-    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
-    obj.geometry_type = ENGINE_GEOMETRY_POINT
-    obj.used = 1
-    obj.fill = engine_enable_fill
-    obj.fill_color =  engine_fill_color
-    obj.border = engine_enable_border
-    obj.border_color = engine_border_color
-    obj.border_thickness = engine_border_thickness
-    obj.mesh_total_v = 1
-end sub
-sub engine.create.line (obj as engine_internal_type_mesh, x1 as single, y1 as single, x2 as single, y2 as single)
-    if obj.mesh_data.SIZE <> 0 then
-        _memfree obj.mesh_data
-    end if
-    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY*2)
-    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
-    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, x2, y2, 0
-    obj.geometry_type = ENGINE_GEOMETRY_LINE
-    obj.used = 1
-    obj.fill = engine_enable_fill
-    obj.fill_color =  engine_fill_color
-    obj.border = engine_enable_border
-    obj.border_color = engine_border_color
-    obj.border_thickness = engine_border_thickness
-    obj.mesh_total_v = 2
-end sub
-sub engine.create.quad (obj as engine_internal_type_mesh, x1 as single, y1 as single, w as single, h as single)
-    if obj.mesh_data.SIZE <> 0 then
-        _memfree obj.mesh_data
-    end if
-    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY*4)
-    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
-    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, x1+w, y1, 0
-    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY*2, x1+w, y1+h, 0
-    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY*3, x1, y1+h, 0
-    obj.geometry_type = ENGINE_GEOMETRY_QUAD
-    obj.used = 1
-    obj.fill = engine_enable_fill
-    obj.fill_color =  engine_fill_color
-    obj.border = engine_enable_border
-    obj.border_color = engine_border_color
-    obj.border_thickness = engine_border_thickness
-    obj.mesh_total_v = 4
-end sub
-sub engine.create.ellipse (obj as engine_internal_type_mesh, x1 as single, y1 as single, w as single, h as single)
-    if obj.mesh_data.SIZE <> 0 then
-        _memfree obj.mesh_data
-    end if
-    obj.mesh_data = _memnew(ENGINE_VERT_MEMORY*2)
-    engine_internal_memput3 obj.mesh_data, 0, x1, y1, 0
-    engine_internal_memput3 obj.mesh_data, ENGINE_VERT_MEMORY, w, h, 0
-    obj.geometry_type = ENGINE_GEOMETRY_ELLIPSE
-    obj.used = 1
-    obj.fill = engine_enable_fill
-    obj.fill_color =  engine_fill_color
-    obj.border = engine_enable_border
-    obj.border_color = engine_border_color
-    obj.border_thickness = engine_border_thickness
-    obj.mesh_total_v = 0
-end sub
-sub engine.destroy (obj as engine_internal_type_mesh)
-    ' dim i as _unsigned long
-    ' for i = engine_internal_mesh_list(m_ref).mesh_v_index to engine_internal_mesh_list(m_ref).mesh_v_index + engine_internal_mesh_list(m_ref).mesh_total_v - 1
-        ' engine_internal_vertex_list(i).used = 0
-    ' next
-    _memfree obj.mesh_data
-    obj.geometry_type = 0
-    obj.fill = 0
-    obj.border = 0
-    obj.hidden = 0
-    obj.mesh_total_v = 0
-    obj.border_thickness = 0
-    obj.fill_color.x = 0 : obj.fill_color.y = 0 : obj.fill_color.z = 0
-    obj.border_color.x = 0 : obj.border_color.y = 0 : obj.border_color.z = 0
-    obj.used = 0
-end sub
-'#################################################################
-'------------------------- INTERNALS -----------------------------
-'#################################################################
-function engine_internal_newID$ ()
-    Dim newID as string, i as _unsigned long
-    engine_internal_newID_retry:
-    newID = ""
-    for i = 1 to 32
-        newID = newID + mid$("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890", int(rnd*62)+1, 1)
+    engine_internal_debug_log "engine.mesh.info() : Mesh Information for handle - "+str$(m_ref), 1
+    engine_internal_debug_log ".geometry_type = "+str$(obj.geometry_type), 1
+    engine_internal_debug_log ".used = "+str$(obj.used), 1
+    engine_internal_debug_log ".mesh_total_v = "+str$(obj.mesh_total_v), 1
+    engine_internal_debug_log "vertex data for mesh -", 1
+    dim i as _unsigned long
+    for i = 0 to obj.mesh_total_v - 1
+        engine_internal_debug_log "["+str$(i)+"] = ("+str$(_memget(obj.mesh_data, obj.mesh_data.OFFSET + i * ENGINE_VERT_MEMORY, single))+","+str$(_memget(obj.mesh_data, obj.mesh_data.OFFSET + i * ENGINE_VERT_MEMORY + 4, single))+","+str$(_memget(obj.mesh_data, obj.mesh_data.OFFSET + i * ENGINE_VERT_MEMORY + 8, single))+")", 1
     next
-    'newID must be unique
-    for i = 1 to ubound(engine_internal_mesh_list)
-        if engine_internal_mesh_list(i).id = newID then goto engine_internal_newID_retry
-    next
-    engine_internal_newID$ = newID
-end function
-sub engine_internal_generate_ellipse_vert()
-    dim i as single, j as _unsigned integer
-    j = 1
-    for i = 0 to _pi(2) step _pi(2/32)
-        engine_internal_ev1(j).x = cos(i) : engine_internal_ev1(j).y = sin(i)
-        j = j + 1
-    next
-    j = 1
-    for i = 0 to _pi(2) step _pi(2/100)
-        engine_internal_ev2(j).x = cos(i) : engine_internal_ev2(j).y = sin(i)
-        j = j + 1
-    next
-    j = 1
-    for i = 0 to _pi(2) step _pi(2/500)
-        engine_internal_ev3(j).x = cos(i) : engine_internal_ev3(j).y = sin(i)
-        j = j + 1
-    next
-end sub
-sub engine_internal_memput1 (m as _mem, p as _unsigned long, d1 as single)
-    _memput m, m.OFFSET + p, d1
-end sub
-sub engine_internal_memput2 (m as _mem, p as _unsigned long, d1 as single, d2 as single)
-    _memput m, m.OFFSET + p, d1
-    _memput m, m.OFFSET + p + 4, d2
-end sub
-sub engine_internal_memput3 (m as _mem, p as _unsigned long, d1 as single, d2 as single, d3 as single)
-    _memput m, m.OFFSET + p, d1
-    _memput m, m.OFFSET + p + 4, d2
-    _memput m, m.OFFSET + p + 8, d3
 end sub
