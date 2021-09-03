@@ -9,8 +9,14 @@ jobs:
         uses: actions/checkout@v2
       - name: Run python script
         run: python auto-generate.py
-      - name: config git and update file
-        run: sudo ./.ci/setup_git_commit.sh
+      - name: config git email
+        run: git config --local user.email "ashishkushwahacb@gmail.com"
+      - name: config git username
+        run: git config --local user.name "repo-bot"
+      - name: add file to stage
+        run: git add engine_method_noerror.bas
+      - name: commit changes if any
+        run: if [[ $(git diff --cached | wc -l) -gt 0 ]] ; then git commit -m "Update engine_method_noerror.bas" ; fi
       - name: push into the repo
         if: github.event_name == 'push'
         uses: ad-m/github-push-action@19caa5c351f47734055690f7d01aaaef2f9114d5
