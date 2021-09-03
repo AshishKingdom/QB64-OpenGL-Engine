@@ -10,7 +10,7 @@ jobs:
       - name: Run python script
         run: python auto-generate.py
       - name: config git and update file
-        run: .ci/setup_git_commit.sh
+        run: sudo ./.ci/setup_git_commit.sh
       - name: push into the repo
         if: github.event_name == 'push'
         uses: ad-m/github-push-action@19caa5c351f47734055690f7d01aaaef2f9114d5
